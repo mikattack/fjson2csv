@@ -3,6 +3,7 @@ package fjson2csv
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"sort"
@@ -10,6 +11,14 @@ import (
 	"testing"
 	"testing/iotest"
 )
+
+
+type badSeeker struct {
+	io.Reader
+}
+func (bs badSeeker) Seek(offset int64, whence int) (int64, error) {
+	return 0, fmt.Errorf("intentional")
+}
 
 
 // Functional test case
@@ -67,6 +76,7 @@ func TestToString(t *testing.T) {
 		{"string", "test", "test"},
 		{"float", float64(12345), "12345"},
 		{"bool", true, "true"},
+		{"bool", false, "false"},
 		{"null", nil, ""},
 	}
 	for _, tc := range cases {
@@ -237,5 +247,78 @@ func TestWriteCSV(t *testing.T) {
 		t.Logf("Found:\n%s", buffer.String())
 		t.FailNow()
 	}
+}
 
+
+func TestIndexFields(t *testing.T) {
+	t.Parallel()
+
+	raw := `[
+		{"test":"hello", "example":42},
+		{"example":12}
+	]`
+
+	buffer := bytes.Buffer{ }
+	reader := strings.NewReader(raw)
+	c := converter {
+		Source:				reader,
+		Destination:	&buffer,
+		Keys: 				map[string]int64{ },
+		sorted:				[]string{ },
+	}
+
+	expectedSortOrder := []string{"example", "test"}
+	expectedKeyMap := map[string]int64{ "test":1, "example":2 }
+	c.IndexFields()
+
+	for index, key := range expectedSortOrder {
+		if c.sorted[index] != key {
+			t.Logf("key sorting failed")
+			t.Logf("Expected:\n%v", expectedSortOrder)
+			t.Logf("Found:\n%v", c.sorted)
+			t.Fail()
+			break
+		}
+	}
+
+	for key, expectedFrequency := range expectedKeyMap {
+		if frequency, ok := c.Keys[key]; ok == false || frequency != expectedFrequency {
+			t.Errorf("key frequency mismatch: expected '%d', found '%d'", expectedFrequency, frequency)
+			break
+		}
+	}
+}
+
+
+func TestWalkJsonList(t *testing.T) {
+	t.Parallel()
+
+	c := converter { }
+
+	fnSucceed := func(r map[string]interface{}, args ...interface{}) error { return nil }
+	fnFail := func(r map[string]interface{}, args ...interface{}) error { return fmt.Errorf("intentional") }
+
+	cases := []struct {
+		name			string
+		reader		io.ReadSeeker
+		fn				walkFunction
+		willFail	bool
+	}{
+		{"malformed json", io.ReadSeeker(strings.NewReader(`test":1}]`)), fnSucceed, true},
+		{"malformed open bracket", io.ReadSeeker(strings.NewReader(`{"test":1}]`)), fnSucceed, true},
+		{"malformed close bracket", io.ReadSeeker(strings.NewReader(`[{"test":1}`)), fnSucceed, true},
+		{"bad seek", badSeeker{strings.NewReader(`[{"test":1}]`)}, fnSucceed, true},
+		{"bad callback", io.ReadSeeker(strings.NewReader(`[{"test":1}]`)), fnFail, true},
+		{"success", io.ReadSeeker(strings.NewReader(`[{"test":1}]`)), fnSucceed, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func (t *testing.T) {
+			c.Source = tc.reader
+			c.WalkJsonList(tc.fn)
+			if c.err != nil && tc.willFail == false {
+				t.Fail()
+			}
+			c.err = nil
+		})
+	}
 }
