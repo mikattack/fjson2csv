@@ -31,7 +31,7 @@ func Convert(r io.ReadSeeker, w io.Writer) error {
 		delimiter:		default_delimiter,
 		sorted:				[]string{},
 	}
-	c.ExtractKeys()
+	c.IndexFields()
 	c.WriteCsv()
 	if c.err != nil {
 		return c.err
@@ -117,9 +117,9 @@ func (c *converter) WalkJsonList(fn walkFunction, args ...interface{}) {
 
 
 // Extracts all property names from JSON input.
-func (c *converter) ExtractKeys() {
+func (c *converter) IndexFields() {
 	// Extract keys
-	c.WalkJsonList(recordKeys, c.Keys)
+	c.WalkJsonList(extractKeys, c.Keys)
 
 	// Sort keys by frequency
 	c.sorted = make([]string, len(c.Keys))
@@ -153,7 +153,7 @@ func (c *converter) WriteCsv() {
 
 
 // Callback function that records the keys of a JSON record to a given map.
-func recordKeys(record map[string]interface{}, args ...interface{}) error {
+func extractKeys(record map[string]interface{}, args ...interface{}) error {
 	keys := args[0].(map[string]int64)
 	for key, _ := range record {
 		if _, ok := keys[key]; ok == false {
