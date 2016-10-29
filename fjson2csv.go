@@ -82,9 +82,14 @@ func (c *converter) WalkJsonList(fn walkFunction, args ...interface{}) {
 	dec := json.NewDecoder(c.Source)
 
 	// Opening bracket
-	if _, err := dec.Token(); err != nil {
-		c.err = fmt.Errorf("malformed JSON: document must be a single array of objects")
+	if token, err := dec.Token(); err != nil {
+		c.err = fmt.Errorf("malformed JSON")
 		return
+	} else {
+		delim, ok := token.(json.Delim)
+		if ok == false || delim.String() != "[" {
+			c.err = fmt.Errorf("malformed JSON: document must be an array of objects")
+		}
 	}
 
 	// Scan each record and extract key names and frequencies
