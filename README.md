@@ -1,13 +1,13 @@
 # fjson2csv
 
-Converts a collection of flat, heterogeneous records from JSON format into CSV format, writing the results to STDOUT.
+Converts a collection of flat, heterogeneous records from JSON format into CSV format, writing the results to `STDOUT`.
 
 Can be used as a library or command line tool.
 
 
 ## Installation
 
-Use `go get` or just download [binary releases](https://gitlab.com/mikattack/fjson2csv/releases).
+Use `go get`:
 
 ```
 go get gitlab.com/mikattack/fjson2csv/cmd/fjson2csv
@@ -16,13 +16,7 @@ go get gitlab.com/mikattack/fjson2csv/cmd/fjson2csv
 
 ## Usage
 
-`fjson2csv` reads JSON content from a given file and outputs its data in CSV format to `STDOUT`.
-
-```sh
-fjson2csv example.json
-```
-
-An example conversion:
+Given the following JSON document:
 
 ```json
 [
@@ -53,6 +47,8 @@ An example conversion:
   }
 ]
 ```
+
+This is what an example conversion looks like:
 
 ```sh
 $: fjson2csv example.json
