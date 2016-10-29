@@ -32,7 +32,7 @@ func Convert(r io.ReadSeeker, w io.Writer) error {
 		sorted:				[]string{},
 	}
 	c.ExtractKeys()
-	c.ConvertJSON()
+	c.WriteCsv()
 	if c.err != nil {
 		return c.err
 	}
@@ -56,6 +56,9 @@ func (ew *errWriter) write(value interface{}) {
 }
 
 
+// Prototype for functions used as callbacks during JSON structure walks.
+type walkFunction func(record map[string]interface{}, args ...interface{}) error
+
 
 // Encapsulates the state necessary to convert JSON input to CSV output.
 // 
@@ -72,8 +75,10 @@ type converter struct {
 }
 
 
-// Extracts all property names from JSON input.
-func (c *converter) ExtractKeys() {
+// Walks a flat JSON array, invoking the given callback for each object
+// encountered. The callback is passed `map[string]interface{}` deserializaiton
+// of each object.
+func (c *converter) WalkJsonList(fn walkFunction, args ...interface{}) {
 	dec := json.NewDecoder(c.Source)
 
 	// Opening bracket
@@ -90,11 +95,9 @@ func (c *converter) ExtractKeys() {
 			return
 		} else {
 			m := record.(map[string]interface{})
-			for key, _ := range m {
-				if _, ok := c.Keys[key]; ok == false {
-					c.Keys[key] = 0
-				}
-				c.Keys[key] += 1
+			if err := fn(m, args...); err != nil {
+				c.err = err
+				return
 			}
 		}
 	}
@@ -110,8 +113,15 @@ func (c *converter) ExtractKeys() {
 		c.err = fmt.Errorf("file read failure: %s", err.Error())
 		return
 	}
+}
 
-	// Extract raw keys and sort them by frequency
+
+// Extracts all property names from JSON input.
+func (c *converter) ExtractKeys() {
+	// Extract keys
+	c.WalkJsonList(recordKeys, c.Keys)
+
+	// Sort keys by frequency
 	c.sorted = make([]string, len(c.Keys))
 	i := 0
 	for k, _ := range c.Keys {
@@ -124,7 +134,7 @@ func (c *converter) ExtractKeys() {
 
 // Writes the CSV version of all data in the JSON input to the
 // converter's writer.
-func (c *converter) ConvertJSON() {
+func (c *converter) WriteCsv() {
 	if c.err != nil {
 		return
 	}
@@ -132,60 +142,61 @@ func (c *converter) ConvertJSON() {
 		return
 	}
 
-	w := errWriter{ w:c.Destination }
+	w := &errWriter{ w:c.Destination }
 
 	// Write field headers
 	w.write(fmt.Sprintf("%s\n", strings.Join(c.sorted, c.delimiter)))
 
-	dec := json.NewDecoder(c.Source)
-
-	// Opening bracket
-	if _, err := dec.Token(); err != nil {
-		c.err = fmt.Errorf("malformed JSON: document must be a single array of objects")
-		return
-	}
-
-	// Scan each record and extract key names and frequencies
-	for dec.More() {
-		var record interface{}
-		if err := dec.Decode(&record); err != nil {
-			c.err = err
-			return
-		} else {
-			m := record.(map[string]interface{})
-
-			// Write first value (for delimiter reasons)
-			if value, ok := m[c.sorted[0]]; ok == true {
-				w.write(value)
-			}
-
-			// Write subsequent values
-			for _, key := range c.sorted[1:] {
-				var value interface{} = ""
-				if _, ok := m[key]; ok == true {
-					value = m[key]
-				}
-				w.write(c.delimiter)
-				w.write(value)
-			}
-
-			// Finish off line
-			w.write("\n")
-		}
-	}
-	if w.err != nil {
-		c.err = fmt.Errorf("output write failure: %s", w.err)
-		return
-	}
-
-	// Closing bracket
-	if _, err := dec.Token(); err != nil {
-		c.err = fmt.Errorf("malformed JSON: array does not end properly")
-		return
-	}
+	// Write JSON data as CSV
+	c.WalkJsonList(writeRecord, c.sorted, c.delimiter, w)
 }
 
 
+// Callback function that records the keys of a JSON record to a given map.
+func recordKeys(record map[string]interface{}, args ...interface{}) error {
+	keys := args[0].(map[string]int64)
+	for key, _ := range record {
+		if _, ok := keys[key]; ok == false {
+			keys[key] = 0
+		}
+		keys[key] += 1
+	}
+	return nil
+}
+
+
+// Callback function which outputs record values to a writer according to the
+// given key map and delimiter.
+func writeRecord(record map[string]interface{}, args ...interface{}) error {
+	keys := args[0].([]string)
+	delimiter := args[1].(string)
+	w := args[2].(*errWriter)
+
+	// Write first value (for delimiter reasons)
+	if value, ok := record[keys[0]]; ok == true {
+		w.write(value)
+	}
+
+	// Write subsequent values
+	for _, key := range keys[1:] {
+		var value interface{} = ""
+		if _, ok := record[key]; ok == true {
+			value = record[key]
+		}
+		w.write(delimiter)
+		w.write(value)
+	}
+
+	// Finish off line
+	w.write("\n")
+
+	return w.err
+}
+
+
+/* 
+ * Make the keys extracted by converter sortable by frequency/key name.
+ */
 func (c converter) Len() int { return len(c.sorted) }
 func (c converter) Swap(i, j int) { c.sorted[i], c.sorted[j] = c.sorted[j], c.sorted[i] }
 func (c converter) Less(i, j int) bool {
@@ -198,6 +209,7 @@ func (c converter) Less(i, j int) bool {
 }
 
 
+// Converts JSON values into strings.
 func toString(value interface{}) string {
 	switch value.(type) {
 	case string:
