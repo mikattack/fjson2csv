@@ -15,7 +15,7 @@ var (
 	usage string = `fjson2csv (v%s)
 
 Converts a collection of flat, heterogeneous records from JSON format into
-CSV format, writing the results to a STDOUT.
+CSV format, writing the results to STDOUT.
 
 Usage:
 	fjson2csv [filename]
