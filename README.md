@@ -7,9 +7,9 @@ Can be used as a library or command line tool.
 
 ## Installation
 
-Use `go get`:
+To build manually:
 
-```
+```sh
 go get gitlab.com/mikattack/fjson2csv
 cd $GOPATH/src/gitlab.com/mikattack/fjson2csv
 make install
@@ -74,6 +74,8 @@ This is a special-case tool which makes several assumptions during the conversio
 - CSV headers are always included
 - **All** properties are included in CSV output, even if an object is missing them
 - CSV fields are sorted by their frequency, then alphabetically
+
+A data generation tool is also available for synthesizing larger JSON input. You can install it from the source directory with `make fjson2csv-data`. Generated data is output directly to `STDOUT`. Several properties of the process can also be configured (see help menu).
 
 
 ## License
