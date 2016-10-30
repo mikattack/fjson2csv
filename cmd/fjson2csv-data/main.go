@@ -144,7 +144,6 @@ func (g *generator) GenerateData() {
 	}
 
 	limit := int64(g.Options.Size * 1048576)
-	//limit := int64(g.Options.Size * 1000)
 	written := int64(0)
 
 	// Write the first record
