@@ -61,13 +61,13 @@ func main() {
 	}
 
 	/*
-		preamble := `
-	Generating data:
-	- Size:      %dmb
-	- Fields:    %d
+			preamble := `
+		Generating data:
+		- Size:      %dmb
+		- Fields:    %d
 
-	`
-		fmt.Printf(preamble, *dir, os.Args[1], *dir, os.Args[1], *size, *fields)
+		`
+			fmt.Printf(preamble, *dir, os.Args[1], *dir, os.Args[1], *size, *fields)
 	*/
 
 	opts := options{
