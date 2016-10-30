@@ -9,19 +9,26 @@ import (
 	"strings"
 )
 
+/*
+ * The following assumptions are made when converting JSON input:
+ *
+ *  - Input JSON is a single collection (array) of objects
+ *  - Each object contains only properties with scalar values
+ *    (no nested objects)
+ *  - No expected consistency of property names from object to object
+ *    (eg. no fixed schema)
+ *  - No string values of properties contain a CSV delimiter
+ *    (a comma, by default)
+ *  - CSV headers are always included
+ *  - All properties are included in CSV output, even if an object is
+ *    missing them
+ *  - CSV fields are sorted by their frequency, then alphabetically
+ */
+
 const default_delimiter string = ","
 
-// Converts a flat, heterogeneous list of JSON objects into CSV. All data
-// from the input reader is converted to CSV and output to the writer.
-//
-// The following assumptions are made about the JSON input:
-//   - A single collection (array) of objects
-//   - Each object contains only properties with scalar values
-//   - No expected consistency of property names from object to object
-//   - No string values of properties contain a CSV delimiter (default: ",")
-//
-// Output CSV data always includes field headers.
-func Convert(r io.ReadSeeker, w io.Writer) error {
+// Converts JSON into CSV incrementally.
+func UnbufferedConvert(r io.ReadSeeker, w io.Writer) error {
 	c := converter{
 		Source:      r,
 		Destination: w,
@@ -29,8 +36,51 @@ func Convert(r io.ReadSeeker, w io.Writer) error {
 		delimiter:   default_delimiter,
 		sorted:      []string{},
 	}
-	c.IndexFields()
-	c.WriteCsv()
+	c.IndexFields(extractKeys)
+	c.WriteCsv(writeRecord)
+	if c.err != nil {
+		return c.err
+	}
+	return nil
+}
+
+// Converts JSON into CSV in-memory.
+func BufferedConvert(r io.ReadSeeker, w io.Writer) error {
+	c := converter{
+		Source:      r,
+		Destination: w,
+		Keys:        map[string]int64{},
+		buffer:      []map[string]interface{}{},
+		delimiter:   default_delimiter,
+		sorted:      []string{},
+	}
+
+	c.IndexFields(bufferData)
+	ew := &errWriter{w: c.Destination}
+
+	// Write field headers
+	ew.write(fmt.Sprintf("%s\n", strings.Join(c.sorted, c.delimiter)))
+
+	// Write buffered data
+	for i := 0; i < len(c.buffer); i++ {
+		record := c.buffer[i]
+		if value, ok := record[c.sorted[0]]; ok == true {
+			ew.write(value)
+		}
+		for _, key := range c.sorted[1:] {
+			var value interface{} = ""
+			if _, ok := record[key]; ok == true {
+				value = record[key]
+			}
+			ew.write(c.delimiter)
+			ew.write(value)
+		}
+		ew.write("\n")
+		if ew.err != nil {
+			c.err = ew.err
+			break
+		}
+	}
 	if c.err != nil {
 		return c.err
 	}
@@ -65,6 +115,7 @@ type converter struct {
 	Destination io.Writer
 	Keys        map[string]int64
 	delimiter   string
+	buffer      []map[string]interface{}
 	err         error
 	sorted      []string
 }
@@ -115,9 +166,9 @@ func (c *converter) WalkJsonList(fn walkFunction, args ...interface{}) {
 }
 
 // Extracts all property names from JSON input.
-func (c *converter) IndexFields() {
+func (c *converter) IndexFields(fn walkFunction) {
 	// Extract keys
-	c.WalkJsonList(extractKeys, c.Keys)
+	c.WalkJsonList(fn, c)
 
 	// Sort keys by frequency
 	c.sorted = make([]string, len(c.Keys))
@@ -131,7 +182,7 @@ func (c *converter) IndexFields() {
 
 // Writes the CSV version of all data in the JSON input to the
 // converter's writer.
-func (c *converter) WriteCsv() {
+func (c *converter) WriteCsv(fn walkFunction) {
 	if c.err != nil {
 		return
 	}
@@ -145,40 +196,46 @@ func (c *converter) WriteCsv() {
 	w.write(fmt.Sprintf("%s\n", strings.Join(c.sorted, c.delimiter)))
 
 	// Write JSON data as CSV
-	c.WalkJsonList(writeRecord, c.sorted, c.delimiter, w)
+	c.WalkJsonList(fn, c, w)
 }
 
-// Callback function that records the keys of a JSON record to a given map.
+// Callback function that indexes record keys.
 func extractKeys(record map[string]interface{}, args ...interface{}) error {
-	keys := args[0].(map[string]int64)
+	c := args[0].(*converter)
 	for key, _ := range record {
-		if _, ok := keys[key]; ok == false {
-			keys[key] = 0
+		if _, ok := c.Keys[key]; ok == false {
+			c.Keys[key] = 0
 		}
-		keys[key] += 1
+		c.Keys[key] += 1
 	}
 	return nil
+}
+
+// Callback function that buffers and indexes record keys.
+func bufferData(record map[string]interface{}, args ...interface{}) error {
+	c := args[0].(*converter)
+	c.buffer = append(c.buffer, record)
+	return extractKeys(record, args...)
 }
 
 // Callback function which outputs record values to a writer according to the
 // given key map and delimiter.
 func writeRecord(record map[string]interface{}, args ...interface{}) error {
-	keys := args[0].([]string)
-	delimiter := args[1].(string)
-	w := args[2].(*errWriter)
+	c := args[0].(*converter)
+	w := args[1].(*errWriter)
 
 	// Write first value (for delimiter reasons)
-	if value, ok := record[keys[0]]; ok == true {
+	if value, ok := record[c.sorted[0]]; ok == true {
 		w.write(value)
 	}
 
 	// Write subsequent values
-	for _, key := range keys[1:] {
+	for _, key := range c.sorted[1:] {
 		var value interface{} = ""
 		if _, ok := record[key]; ok == true {
 			value = record[key]
 		}
-		w.write(delimiter)
+		w.write(c.delimiter)
 		w.write(value)
 	}
 

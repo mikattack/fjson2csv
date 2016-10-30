@@ -15,7 +15,7 @@ import (
 
 var (
 	rawJson string
-	rawCsv string
+	rawCsv  string
 )
 
 type badSeeker struct {
@@ -26,14 +26,13 @@ func (bs badSeeker) Seek(offset int64, whence int) (int64, error) {
 	return 0, fmt.Errorf("intentional")
 }
 
-// Functional test case
-func TestConvert(t *testing.T) {
+func TestBufferedConvert(t *testing.T) {
 	t.Parallel()
 
 	// Convert JSON to CSV
 	buffer := bytes.Buffer{}
-	if err := Convert(strings.NewReader(rawJson), &buffer); err != nil {
-		t.Fatalf("failed to open JSON input file: %s", err.Error())
+	if err := BufferedConvert(strings.NewReader(rawJson), &buffer); err != nil {
+		t.Fatalf("conversion failure: %s", err.Error())
 	}
 
 	// Compare expected vs. actual
@@ -47,10 +46,37 @@ func TestConvert(t *testing.T) {
 	}
 }
 
-func BenchmarkConvert(b *testing.B) {
+func BenchmarkBufferedConvert(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		buffer := bytes.Buffer{}
-		Convert(strings.NewReader(rawJson), &buffer)
+		UnbufferedConvert(strings.NewReader(rawJson), &buffer)
+	}
+}
+
+func TestUnbufferedConvert(t *testing.T) {
+	t.Parallel()
+
+	// Convert JSON to CSV
+	buffer := bytes.Buffer{}
+	if err := UnbufferedConvert(strings.NewReader(rawJson), &buffer); err != nil {
+		t.Fatalf("conversion failure: %s", err.Error())
+	}
+
+	// Compare expected vs. actual
+	expected := rawCsv
+	actual := buffer.String()
+	if actual != rawCsv {
+		t.Logf("converted JSON data did not match expected CSV output")
+		t.Logf("Expected:\n%s", expected)
+		t.Logf("Found:\n%s", actual)
+		t.FailNow()
+	}
+}
+
+func BenchmarkUnbufferedConvert(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		buffer := bytes.Buffer{}
+		UnbufferedConvert(strings.NewReader(rawJson), &buffer)
 	}
 }
 
@@ -109,8 +135,10 @@ func TestWriteRecordCallback(t *testing.T) {
 	 * that stops writing after a few bytes.
 	 */
 
-	keymap := []string{"name", "category", "age", "valid"}
-	delimiter := ","
+	c := converter{
+		sorted:    []string{"name", "category", "age", "valid"},
+		delimiter: ",",
+	}
 
 	cases := []struct {
 		name     string
@@ -136,7 +164,7 @@ func TestWriteRecordCallback(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := writeRecord(tc.record, keymap, delimiter, tc.writer)
+			err := writeRecord(tc.record, &c, tc.writer)
 			if err != nil && tc.willFail == false {
 				t.Errorf("failed to write CSV data")
 			}
@@ -152,7 +180,7 @@ func TestExtractKeysCallback(t *testing.T) {
 	 * frequency counters of the given index.
 	 */
 
-	keymap := map[string]int64{}
+	c := converter{Keys: map[string]int64{}}
 	cases := []struct {
 		name     string
 		expected map[string]int64
@@ -176,8 +204,8 @@ func TestExtractKeysCallback(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			extractKeys(tc.record, keymap)
-			for key, frequency := range keymap {
+			extractKeys(tc.record, &c)
+			for key, frequency := range c.Keys {
 				if frequency != tc.expected[key] {
 					t.Errorf("key frequency mismatch: expected '%d', found '%d'", tc.expected[key], frequency)
 					break
@@ -207,14 +235,14 @@ func TestWriteCSV(t *testing.T) {
 	}
 
 	// Simulate prior error
-	c.WriteCsv()
+	c.WriteCsv(writeRecord)
 	if buffer.String() != "" {
 		t.Errorf("expected zero output when converter indicates an error")
 	}
 
 	// Simulate failed indexing
 	c.err = nil
-	c.WriteCsv()
+	c.WriteCsv(writeRecord)
 	if buffer.String() != "" {
 		t.Errorf("expected zero output when converter failed indexing")
 	}
@@ -225,7 +253,7 @@ func TestWriteCSV(t *testing.T) {
 12,
 `
 	c.sorted = []string{"example", "test"}
-	c.WriteCsv()
+	c.WriteCsv(writeRecord)
 	if buffer.String() != expected {
 		t.Logf("accurate CSV conversion unsuccessful")
 		t.Logf("Expected:\n%s", expected)
@@ -253,7 +281,7 @@ func TestIndexFields(t *testing.T) {
 
 	expectedSortOrder := []string{"example", "test"}
 	expectedKeyMap := map[string]int64{"test": 1, "example": 2}
-	c.IndexFields()
+	c.IndexFields(extractKeys)
 
 	for index, key := range expectedSortOrder {
 		if c.sorted[index] != key {
@@ -332,7 +360,7 @@ func TestMain(m *testing.M) {
 	if rawCsv, err = readFile(csvFile); err != nil {
 		panic(fmt.Sprintf("csv data: %s", err.Error()))
 	}
-	
+
 	result := m.Run()
 	os.Exit(result)
 }
