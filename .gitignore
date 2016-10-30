@@ -1,3 +1,6 @@
 .DS_Store
 /fjson2csv
+/fjson2csv-data
 /*.out
+/*.json
+/*.csv
