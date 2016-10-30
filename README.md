@@ -10,7 +10,9 @@ Can be used as a library or command line tool.
 Use `go get`:
 
 ```
-go get gitlab.com/mikattack/fjson2csv/cmd/fjson2csv
+go get gitlab.com/mikattack/fjson2csv
+cd $GOPATH/src/gitlab.com/mikattack/fjson2csv
+make install
 ```
 
 
