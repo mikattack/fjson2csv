@@ -2,6 +2,7 @@ package fjson2csv
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,6 +11,11 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+)
+
+var (
+	rawJson string
+	rawCsv string
 )
 
 type badSeeker struct {
@@ -24,42 +30,27 @@ func (bs badSeeker) Seek(offset int64, whence int) (int64, error) {
 func TestConvert(t *testing.T) {
 	t.Parallel()
 
-	var expected string
-	inputFile := "./testdata/example.json"
-	outputFile := "./testdata/example.csv"
-
-	// Read in expected CSV output
-	file, err := os.Open(outputFile)
-	if err != nil {
-		t.Fatalf("failed to open expected CSV output file")
-	}
-	if rawOutput, err := ioutil.ReadAll(file); err != nil {
-		t.Fatalf("failed to read expected CSV output file: %s", err.Error())
-	} else {
-		expected = string(rawOutput)
-	}
-	file.Close()
-
-	// Open JSON input file
-	file, err = os.Open(inputFile)
-	if err != nil {
-		t.Fatalf("failed to open JSON input file: %s", err.Error())
-	}
-	defer file.Close()
-
-	// Convert JSON
+	// Convert JSON to CSV
 	buffer := bytes.Buffer{}
-	if err := Convert(file, &buffer); err != nil {
+	if err := Convert(strings.NewReader(rawJson), &buffer); err != nil {
 		t.Fatalf("failed to open JSON input file: %s", err.Error())
 	}
 
 	// Compare expected vs. actual
+	expected := rawCsv
 	actual := buffer.String()
-	if actual != expected {
+	if actual != rawCsv {
 		t.Logf("converted JSON data did not match expected CSV output")
 		t.Logf("Expected:\n%s", expected)
 		t.Logf("Found:\n%s", actual)
 		t.FailNow()
+	}
+}
+
+func BenchmarkConvert(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		buffer := bytes.Buffer{}
+		Convert(strings.NewReader(rawJson), &buffer)
 	}
 }
 
@@ -313,4 +304,35 @@ func TestWalkJsonList(t *testing.T) {
 			c.err = nil
 		})
 	}
+}
+
+func readFile(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file")
+	}
+	defer file.Close()
+	if raw, err := ioutil.ReadAll(file); err != nil {
+		return "", fmt.Errorf("failed to read file: %s", err.Error())
+	} else {
+		return string(raw), nil
+	}
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+
+	var err error
+	jsonFile := "./testdata/example.json"
+	csvFile := "./testdata/example.csv"
+
+	if rawJson, err = readFile(jsonFile); err != nil {
+		panic(fmt.Sprintf("json data: %s", err.Error()))
+	}
+	if rawCsv, err = readFile(csvFile); err != nil {
+		panic(fmt.Sprintf("csv data: %s", err.Error()))
+	}
+	
+	result := m.Run()
+	os.Exit(result)
 }
