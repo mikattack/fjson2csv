@@ -10,6 +10,9 @@ build: fjson2csv
 fjson2csv: *.go cmd/fjson2csv/*.go
 	go build ./cmd/fjson2csv
 
+fjson2csv-data: *.go cmd/fjson2csv-data/*.go
+	go build ./cmd/fjson2csv-data
+
 test:
 	go test $(shell go list ./... | grep -v "/vendor/")
 
