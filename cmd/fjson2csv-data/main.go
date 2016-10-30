@@ -1,9 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"encoding/json"
 	"io"
 	"math/rand"
 	"os"
@@ -11,11 +11,10 @@ import (
 	"time"
 )
 
-
 const (
-	letterBytes 	= "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	letterBytes   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	letterIdxBits = 6
-	letterIdxMask = 1 << letterIdxBits - 1
+	letterIdxMask = 1<<letterIdxBits - 1
 	letterIdxMax  = 63 / letterIdxBits
 
 	str = iota
@@ -23,12 +22,12 @@ const (
 )
 
 var (
-	fields  = flag.Int("f", 10, "Maximum number of generated fields")
-	help    = flag.Bool("h", false, "Help menu")
-	size    = flag.Int("m", 10, "Approximate size of generated JSON file")
+	fields = flag.Int("f", 10, "Maximum number of generated fields")
+	help   = flag.Bool("h", false, "Help menu")
+	size   = flag.Int("m", 10, "Approximate size of generated JSON file")
 
 	version string = "1.0"
-	usage string = `fjson2csv-data (v%s)
+	usage   string = `fjson2csv-data (v%s)
 
 Generates sample JSON data for testing with 'fjson2csv'. JSON formatted data
 is sent to STDOUT.
@@ -43,7 +42,6 @@ Options
 
 `
 )
-
 
 func main() {
 	flag.Parse()
@@ -63,19 +61,19 @@ func main() {
 	}
 
 	/*
-	preamble := `
-Generating data:
-- Size:      %dmb
-- Fields:    %d
+		preamble := `
+	Generating data:
+	- Size:      %dmb
+	- Fields:    %d
 
-`
-	fmt.Printf(preamble, *dir, os.Args[1], *dir, os.Args[1], *size, *fields)
+	`
+		fmt.Printf(preamble, *dir, os.Args[1], *dir, os.Args[1], *size, *fields)
 	*/
 
-	opts := options {
-		Stream:	os.Stdout,
-		Size:		*size,
-		Fields:	*fields,
+	opts := options{
+		Stream: os.Stdout,
+		Size:   *size,
+		Fields: *fields,
 	}
 	g := newGenerator(&opts)
 	g.GenerateHeaders()
@@ -85,10 +83,9 @@ Generating data:
 	}
 }
 
-
 type errWriter struct {
-	w		io.Writer
-	err	error
+	w   io.Writer
+	err error
 }
 
 func (ew *errWriter) write(value interface{}) int64 {
@@ -108,41 +105,36 @@ func (ew *errWriter) writeBytes(value []byte) int64 {
 	return int64(written)
 }
 
-
 type options struct {
-	Stream	io.Writer
-	Size		int
-	Fields	int
+	Stream io.Writer
+	Size   int
+	Fields int
 }
-
 
 type generator struct {
-	Headers		[]string
-	Options		*options
-	err				error
-	stream		errWriter
-	source		rand.Source
+	Headers []string
+	Options *options
+	err     error
+	stream  errWriter
+	source  rand.Source
 }
-
 
 func newGenerator(opts *options) generator {
-	return generator {
-		Headers:	[]string{},
-		Options:	opts,
-		stream:		errWriter{ w:opts.Stream },
-		source:		rand.NewSource(time.Now().UnixNano()),
+	return generator{
+		Headers: []string{},
+		Options: opts,
+		stream:  errWriter{w: opts.Stream},
+		source:  rand.NewSource(time.Now().UnixNano()),
 	}
 }
-
 
 func (g *generator) GenerateHeaders() {
 	// TODO: Allow custom header fields
 	for i := 0; i < g.Options.Fields; i++ {
-		field := randomString(g.source, rand.Intn(10) + 5)
+		field := randomString(g.source, rand.Intn(10)+5)
 		g.Headers = append(g.Headers, field)
 	}
 }
-
 
 func (g *generator) GenerateData() {
 	// Only useful for testing (eventually?)
@@ -182,13 +174,12 @@ func (g *generator) GenerateData() {
 	g.stream.write("]\n")
 }
 
-
 // Generate a random string of a fixed length.
-// 
+//
 // From: http://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-golang
 func randomString(src rand.Source, n int) string {
 	buffer := make([]byte, n)
-	for i, cache, remain := n - 1, src.Int63(), letterIdxMax; i >= 0; {
+	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
 		if remain == 0 {
 			cache, remain = src.Int63(), letterIdxMax
 		}
@@ -202,12 +193,11 @@ func randomString(src rand.Source, n int) string {
 	return string(buffer)
 }
 
-
 // Generates random data of a random type.
 func randomData(src rand.Source, datatype int) interface{} {
 	switch datatype {
 	case 0:
-		return randomString(src, rand.Intn(10) + 5)
+		return randomString(src, rand.Intn(10)+5)
 	case 1:
 		return rand.Intn(41) + 1
 	default:
@@ -215,13 +205,12 @@ func randomData(src rand.Source, datatype int) interface{} {
 	}
 }
 
-
 func generateRecord(g *generator) map[string]interface{} {
-	m := map[string]interface{} { }
+	m := map[string]interface{}{}
 	f := rand.Intn(len(g.Headers) - 1)
-	fields := rand.Intn(g.Options.Fields - 1) + 1
+	fields := rand.Intn(g.Options.Fields-1) + 1
 	for i := 0; i < fields; i++ {
-		m[g.Headers[f]] = randomData(g.source, f % 3)
+		m[g.Headers[f]] = randomData(g.source, f%3)
 		n := rand.Intn(len(g.Headers) - 1)
 		for n == f {
 			n = rand.Intn(len(g.Headers) - 1)
@@ -230,7 +219,6 @@ func generateRecord(g *generator) map[string]interface{} {
 	}
 	return m
 }
-
 
 // Converts JSON values into strings.
 func toString(value interface{}) string {

@@ -9,27 +9,25 @@ import (
 	"strings"
 )
 
-
 const default_delimiter string = ","
-
 
 // Converts a flat, heterogeneous list of JSON objects into CSV. All data
 // from the input reader is converted to CSV and output to the writer.
-// 
+//
 // The following assumptions are made about the JSON input:
 //   - A single collection (array) of objects
 //   - Each object contains only properties with scalar values
 //   - No expected consistency of property names from object to object
 //   - No string values of properties contain a CSV delimiter (default: ",")
-// 
+//
 // Output CSV data always includes field headers.
 func Convert(r io.ReadSeeker, w io.Writer) error {
-	c := converter {
-		Source: 			r,
-		Destination:	w,
-		Keys:					map[string]int64{},
-		delimiter:		default_delimiter,
-		sorted:				[]string{},
+	c := converter{
+		Source:      r,
+		Destination: w,
+		Keys:        map[string]int64{},
+		delimiter:   default_delimiter,
+		sorted:      []string{},
 	}
 	c.IndexFields()
 	c.WriteCsv()
@@ -40,12 +38,11 @@ func Convert(r io.ReadSeeker, w io.Writer) error {
 	return nil
 }
 
-
 // Convenience type for cutting down on error checking and type conversion
 // boilerplate code during repetative writes.
 type errWriter struct {
-	w		io.Writer
-	err	error
+	w   io.Writer
+	err error
 }
 
 func (ew *errWriter) write(value interface{}) {
@@ -55,25 +52,22 @@ func (ew *errWriter) write(value interface{}) {
 	_, ew.err = ew.w.Write([]byte(toString(value)))
 }
 
-
 // Prototype for functions used as callbacks during JSON structure walks.
 type walkFunction func(record map[string]interface{}, args ...interface{}) error
 
-
 // Encapsulates the state necessary to convert JSON input to CSV output.
-// 
+//
 // This implementation passes over input data twice to first extract all
 // possible field names, then to output CSV data. This trades greater time
 // complexity for less space complexity.
 type converter struct {
-	Source				io.ReadSeeker
-	Destination		io.Writer
-	Keys					map[string]int64
-	delimiter			string
-	err						error
-	sorted				[]string
+	Source      io.ReadSeeker
+	Destination io.Writer
+	Keys        map[string]int64
+	delimiter   string
+	err         error
+	sorted      []string
 }
-
 
 // Walks a flat JSON array, invoking the given callback for each object
 // encountered. The callback is passed `map[string]interface{}` deserializaiton
@@ -120,7 +114,6 @@ func (c *converter) WalkJsonList(fn walkFunction, args ...interface{}) {
 	}
 }
 
-
 // Extracts all property names from JSON input.
 func (c *converter) IndexFields() {
 	// Extract keys
@@ -136,7 +129,6 @@ func (c *converter) IndexFields() {
 	sort.Sort(c)
 }
 
-
 // Writes the CSV version of all data in the JSON input to the
 // converter's writer.
 func (c *converter) WriteCsv() {
@@ -147,7 +139,7 @@ func (c *converter) WriteCsv() {
 		return
 	}
 
-	w := &errWriter{ w:c.Destination }
+	w := &errWriter{w: c.Destination}
 
 	// Write field headers
 	w.write(fmt.Sprintf("%s\n", strings.Join(c.sorted, c.delimiter)))
@@ -155,7 +147,6 @@ func (c *converter) WriteCsv() {
 	// Write JSON data as CSV
 	c.WalkJsonList(writeRecord, c.sorted, c.delimiter, w)
 }
-
 
 // Callback function that records the keys of a JSON record to a given map.
 func extractKeys(record map[string]interface{}, args ...interface{}) error {
@@ -168,7 +159,6 @@ func extractKeys(record map[string]interface{}, args ...interface{}) error {
 	}
 	return nil
 }
-
 
 // Callback function which outputs record values to a writer according to the
 // given key map and delimiter.
@@ -198,11 +188,10 @@ func writeRecord(record map[string]interface{}, args ...interface{}) error {
 	return w.err
 }
 
-
-/* 
+/*
  * Make the keys extracted by converter sortable by frequency/key name.
  */
-func (c converter) Len() int { return len(c.sorted) }
+func (c converter) Len() int      { return len(c.sorted) }
 func (c converter) Swap(i, j int) { c.sorted[i], c.sorted[j] = c.sorted[j], c.sorted[i] }
 func (c converter) Less(i, j int) bool {
 	a, b := c.Keys[c.sorted[i]], c.Keys[c.sorted[j]]
@@ -212,7 +201,6 @@ func (c converter) Less(i, j int) bool {
 		return c.sorted[j] > c.sorted[i]
 	}
 }
-
 
 // Converts JSON values into strings.
 func toString(value interface{}) string {

@@ -12,21 +12,20 @@ import (
 	"testing/iotest"
 )
 
-
 type badSeeker struct {
 	io.Reader
 }
+
 func (bs badSeeker) Seek(offset int64, whence int) (int64, error) {
 	return 0, fmt.Errorf("intentional")
 }
-
 
 // Functional test case
 func TestConvert(t *testing.T) {
 	t.Parallel()
 
 	var expected string
-	inputFile  := "./testdata/example.json"
+	inputFile := "./testdata/example.json"
 	outputFile := "./testdata/example.csv"
 
 	// Read in expected CSV output
@@ -49,7 +48,7 @@ func TestConvert(t *testing.T) {
 	defer file.Close()
 
 	// Convert JSON
-	buffer := bytes.Buffer{ }
+	buffer := bytes.Buffer{}
 	if err := Convert(file, &buffer); err != nil {
 		t.Fatalf("failed to open JSON input file: %s", err.Error())
 	}
@@ -64,14 +63,13 @@ func TestConvert(t *testing.T) {
 	}
 }
 
-
 func TestToString(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name			string
-		value			interface{}
-		expected	string
+		name     string
+		value    interface{}
+		expected string
 	}{
 		{"string", "test", "test"},
 		{"float", float64(12345), "12345"},
@@ -80,7 +78,7 @@ func TestToString(t *testing.T) {
 		{"null", nil, ""},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func (t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			converted := toString(tc.value)
 			if converted != tc.expected {
 				t.Errorf("expected '%s', found '%v'", tc.expected, converted)
@@ -89,16 +87,15 @@ func TestToString(t *testing.T) {
 	}
 }
 
-
 func TestKeySort(t *testing.T) {
-	expected := []string{ "marbles", "angles", "apples", "colors", "feelings" }
-	converter := converter {
-		Keys: map[string]int64 {
-			"apples": 	4,
-			"angles": 	4,
-			"marbles":	12,
-			"feelings":	1,
-			"colors":		1,
+	expected := []string{"marbles", "angles", "apples", "colors", "feelings"}
+	converter := converter{
+		Keys: map[string]int64{
+			"apples":   4,
+			"angles":   4,
+			"marbles":  12,
+			"feelings": 1,
+			"colors":   1,
 		},
 	}
 	sort.Sort(converter)
@@ -112,43 +109,42 @@ func TestKeySort(t *testing.T) {
 	}
 }
 
-
 func TestWriteRecordCallback(t *testing.T) {
 	t.Parallel()
 
-	/* 
+	/*
 	 * Here, we test the same record twice. One should output the expected CSV
 	 * string and the other should not. The failure is simulated with a writer
 	 * that stops writing after a few bytes.
 	 */
 
-	keymap := []string{ "name", "category", "age", "valid" }
+	keymap := []string{"name", "category", "age", "valid"}
 	delimiter := ","
 
 	cases := []struct {
-		name			string
-		expected	string
-		record		map[string]interface{}
-		writer		*errWriter
-		willFail  bool
+		name     string
+		expected string
+		record   map[string]interface{}
+		writer   *errWriter
+		willFail bool
 	}{
 		{
 			"failing write",
 			"pickle,condiment,4,true,",
-			map[string]interface{} {"name":"pickle","category":"condiment","age":4,"valid":true},
-			&errWriter{w: iotest.TruncateWriter(&bytes.Buffer{ }, 12)},
+			map[string]interface{}{"name": "pickle", "category": "condiment", "age": 4, "valid": true},
+			&errWriter{w: iotest.TruncateWriter(&bytes.Buffer{}, 12)},
 			true,
 		},
 		{
 			"successful write",
 			"pickle,condiment,4,true,",
-			map[string]interface{} {"name":"pickle","category":"condiment","age":4,"valid":true},
-			&errWriter{w: &bytes.Buffer{ }},
+			map[string]interface{}{"name": "pickle", "category": "condiment", "age": 4, "valid": true},
+			&errWriter{w: &bytes.Buffer{}},
 			false,
 		},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func (t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			err := writeRecord(tc.record, keymap, delimiter, tc.writer)
 			if err != nil && tc.willFail == false {
 				t.Errorf("failed to write CSV data")
@@ -157,39 +153,38 @@ func TestWriteRecordCallback(t *testing.T) {
 	}
 }
 
-
 func TestExtractKeysCallback(t *testing.T) {
 	t.Parallel()
 
-	/* 
+	/*
 	 * Here, we test whether the callback function properly increments the
 	 * frequency counters of the given index.
 	 */
 
-	keymap := map[string]int64{ }
+	keymap := map[string]int64{}
 	cases := []struct {
-		name			string
-		expected	map[string]int64
-		record		map[string]interface{}
+		name     string
+		expected map[string]int64
+		record   map[string]interface{}
 	}{
 		{
 			"full",
-			map[string]int64 {"name":1,"category":1,"age":1,"valid":1},
-			map[string]interface{} {"name":"pickle","category":"condiment","age":4,"valid":true},
+			map[string]int64{"name": 1, "category": 1, "age": 1, "valid": 1},
+			map[string]interface{}{"name": "pickle", "category": "condiment", "age": 4, "valid": true},
 		},
 		{
 			"partial",
-			map[string]int64 {"name":1,"category":2,"age":1,"valid":2},
-			map[string]interface{} {"category":"condiment","valid":true},
+			map[string]int64{"name": 1, "category": 2, "age": 1, "valid": 2},
+			map[string]interface{}{"category": "condiment", "valid": true},
 		},
 		{
 			"empty",
-			map[string]int64 {"name":1,"category":2,"age":1,"valid":2},
-			map[string]interface{} { },
+			map[string]int64{"name": 1, "category": 2, "age": 1, "valid": 2},
+			map[string]interface{}{},
 		},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func (t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			extractKeys(tc.record, keymap)
 			for key, frequency := range keymap {
 				if frequency != tc.expected[key] {
@@ -201,7 +196,6 @@ func TestExtractKeysCallback(t *testing.T) {
 	}
 }
 
-
 func TestWriteCSV(t *testing.T) {
 	t.Parallel()
 
@@ -210,15 +204,15 @@ func TestWriteCSV(t *testing.T) {
 		{"example":12}
 	]`
 
-	buffer := bytes.Buffer{ }
+	buffer := bytes.Buffer{}
 	reader := strings.NewReader(raw)
-	c := converter {
-		Source:				reader,
-		Destination:	&buffer,
-		Keys: 				map[string]int64{ "test":1, "example":2 },
-		delimiter:		",",
-		err:					fmt.Errorf("simulated error"),
-		sorted:				[]string{ },
+	c := converter{
+		Source:      reader,
+		Destination: &buffer,
+		Keys:        map[string]int64{"test": 1, "example": 2},
+		delimiter:   ",",
+		err:         fmt.Errorf("simulated error"),
+		sorted:      []string{},
 	}
 
 	// Simulate prior error
@@ -249,7 +243,6 @@ func TestWriteCSV(t *testing.T) {
 	}
 }
 
-
 func TestIndexFields(t *testing.T) {
 	t.Parallel()
 
@@ -258,17 +251,17 @@ func TestIndexFields(t *testing.T) {
 		{"example":12}
 	]`
 
-	buffer := bytes.Buffer{ }
+	buffer := bytes.Buffer{}
 	reader := strings.NewReader(raw)
-	c := converter {
-		Source:				reader,
-		Destination:	&buffer,
-		Keys: 				map[string]int64{ },
-		sorted:				[]string{ },
+	c := converter{
+		Source:      reader,
+		Destination: &buffer,
+		Keys:        map[string]int64{},
+		sorted:      []string{},
 	}
 
 	expectedSortOrder := []string{"example", "test"}
-	expectedKeyMap := map[string]int64{ "test":1, "example":2 }
+	expectedKeyMap := map[string]int64{"test": 1, "example": 2}
 	c.IndexFields()
 
 	for index, key := range expectedSortOrder {
@@ -289,20 +282,19 @@ func TestIndexFields(t *testing.T) {
 	}
 }
 
-
 func TestWalkJsonList(t *testing.T) {
 	t.Parallel()
 
-	c := converter { }
+	c := converter{}
 
 	fnSucceed := func(r map[string]interface{}, args ...interface{}) error { return nil }
 	fnFail := func(r map[string]interface{}, args ...interface{}) error { return fmt.Errorf("intentional") }
 
 	cases := []struct {
-		name			string
-		reader		io.ReadSeeker
-		fn				walkFunction
-		willFail	bool
+		name     string
+		reader   io.ReadSeeker
+		fn       walkFunction
+		willFail bool
 	}{
 		{"malformed json", io.ReadSeeker(strings.NewReader(`test":1}]`)), fnSucceed, true},
 		{"malformed open bracket", io.ReadSeeker(strings.NewReader(`{"test":1}]`)), fnSucceed, true},
@@ -312,7 +304,7 @@ func TestWalkJsonList(t *testing.T) {
 		{"success", io.ReadSeeker(strings.NewReader(`[{"test":1}]`)), fnSucceed, false},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func (t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			c.Source = tc.reader
 			c.WalkJsonList(tc.fn)
 			if c.err != nil && tc.willFail == false {
