@@ -53,8 +53,9 @@ Given the following JSON document:
 This is what an example conversion looks like:
 
 ```sh
-$: fjson2csv example.json
+$: fjson2csv example.json example.csv
 
+$: cat example.csv
 id,first_name,last_name,birth_year,anonymous_user,crm_id,e_equals_mc_squared,middle_initial,profession
 1,Jane,Doe,,,,,,
 2,John,Public,1971,,,,Q,
