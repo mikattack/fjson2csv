@@ -9,12 +9,12 @@ import (
 )
 
 var (
-	help              = flag.Bool("h", false, "Usage instructions")
-	incremental       = flag.Bool("i", false, "Enable incremental conversion")
-	readBuffer				= flag.Int("r", 1024, "Internal read buffer size")
-	writeBuffer				= flag.Int("w", 1024, "Internal write buffer size")
-	version    string = "1.0"
-	usage      string = `fjson2csv (v%s)
+	help               = flag.Bool("h", false, "Usage instructions")
+	incremental        = flag.Bool("i", false, "Enable incremental conversion")
+	readBuffer         = flag.Int("r", 1024, "Internal read buffer size")
+	writeBuffer        = flag.Int("w", 1024, "Internal write buffer size")
+	version     string = "1.0"
+	usage       string = `fjson2csv (v%s)
 
 Converts a collection of flat, heterogeneous records from JSON format into
 CSV format, writing the results to the given output file.
@@ -52,8 +52,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	files := os.Args[len(os.Args) - 2:]
-	inputfile  := string(files[0])
+	files := os.Args[len(os.Args)-2:]
+	inputfile := string(files[0])
 	outputfile := string(files[1])
 
 	src, err = os.Open(inputfile)
@@ -71,8 +71,8 @@ func main() {
 	defer dst.Close()
 
 	opts := fjson2csv.Options{
-		ReadBufferSize:		*readBuffer,
-		WriteBufferSize:	*writeBuffer,
+		ReadBufferSize:  *readBuffer,
+		WriteBufferSize: *writeBuffer,
 	}
 
 	if *incremental {

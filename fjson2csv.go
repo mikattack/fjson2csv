@@ -39,8 +39,8 @@ func UnbufferedConvert(r io.ReadSeeker, w io.Writer, opts Options) error {
 		Keys:        map[string]int64{},
 		delimiter:   default_delimiter,
 		sorted:      []string{},
-		readSize:		 rsize,
-		writeSize:	 wsize,
+		readSize:    rsize,
+		writeSize:   wsize,
 	}
 	c.IndexFields(extractKeys)
 	c.WriteCsv(writeRecord)
@@ -60,8 +60,8 @@ func BufferedConvert(r io.ReadSeeker, w io.Writer, opts Options) error {
 		buffer:      []map[string]interface{}{},
 		delimiter:   default_delimiter,
 		sorted:      []string{},
-		readSize:		 rsize,
-		writeSize:	 wsize,
+		readSize:    rsize,
+		writeSize:   wsize,
 	}
 
 	c.IndexFields(bufferData)
@@ -99,8 +99,8 @@ func BufferedConvert(r io.ReadSeeker, w io.Writer, opts Options) error {
 }
 
 type Options struct {
-	ReadBufferSize	int
-	WriteBufferSize	int
+	ReadBufferSize  int
+	WriteBufferSize int
 }
 
 // Convenience type for cutting down on error checking and type conversion
@@ -133,7 +133,7 @@ func (ew *errWriter) flush() {
 }
 
 func newErrorWriter(writer io.Writer, size int) *errWriter {
-	return &errWriter {
+	return &errWriter{
 		w: bufio.NewWriterSize(writer, size),
 	}
 }
@@ -153,9 +153,9 @@ type converter struct {
 	delimiter   string
 	buffer      []map[string]interface{}
 	err         error
-	readSize		int
+	readSize    int
 	sorted      []string
-	writeSize		int
+	writeSize   int
 }
 
 // Walks a flat JSON array, invoking the given callback for each object
