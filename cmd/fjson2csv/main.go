@@ -10,19 +10,26 @@ import (
 
 var (
 	help              = flag.Bool("h", false, "Usage instructions")
-	unbuffered        = flag.Bool("u", false, "Enable unbuffered conversion")
+	incremental       = flag.Bool("i", false, "Enable incremental conversion")
+	readBuffer				= flag.Int("r", 1024, "Internal read buffer size")
+	writeBuffer				= flag.Int("w", 1024, "Internal write buffer size")
 	version    string = "1.0"
 	usage      string = `fjson2csv (v%s)
 
 Converts a collection of flat, heterogeneous records from JSON format into
 CSV format, writing the results to the given output file.
 
+By default, the conversion loads the entire file into memory. Use the '-u'
+option to convert very large files incrementally.
+
 Usage:
-	fjson2csv [input] [output]
+  fjson2csv [input] [output]
 
 Options
-	-u  Enable unbuffered conversion
-	-h  This help menu
+  -h  This help menu
+  -i  Enable incremental conversion
+  -r  Set internal read buffer size in KB (default: 1024)
+  -w  Set internal write buffer size in KB (default: 1024)
 
 `
 )
@@ -63,10 +70,15 @@ func main() {
 	}
 	defer dst.Close()
 
-	if *unbuffered {
-		err = fjson2csv.UnbufferedConvert(src, dst)
+	opts := fjson2csv.Options{
+		ReadBufferSize:		*readBuffer,
+		WriteBufferSize:	*writeBuffer,
+	}
+
+	if *incremental {
+		err = fjson2csv.UnbufferedConvert(src, dst, opts)
 	} else {
-		err = fjson2csv.BufferedConvert(src, dst)
+		err = fjson2csv.BufferedConvert(src, dst, opts)
 	}
 	if err != nil {
 		fmt.Printf("%s\n", err.Error())

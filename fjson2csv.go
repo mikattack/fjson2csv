@@ -1,6 +1,7 @@
 package fjson2csv
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,15 +27,20 @@ import (
  */
 
 const default_delimiter string = ","
+const default_write_buffer_size int = 1024
+const default_read_buffer_size int = 1024
 
 // Converts JSON into CSV incrementally.
-func UnbufferedConvert(r io.ReadSeeker, w io.Writer) error {
+func UnbufferedConvert(r io.ReadSeeker, w io.Writer, opts Options) error {
+	rsize, wsize := getBufferSizes(opts)
 	c := converter{
 		Source:      r,
 		Destination: w,
 		Keys:        map[string]int64{},
 		delimiter:   default_delimiter,
 		sorted:      []string{},
+		readSize:		 rsize,
+		writeSize:	 wsize,
 	}
 	c.IndexFields(extractKeys)
 	c.WriteCsv(writeRecord)
@@ -45,7 +51,8 @@ func UnbufferedConvert(r io.ReadSeeker, w io.Writer) error {
 }
 
 // Converts JSON into CSV in-memory.
-func BufferedConvert(r io.ReadSeeker, w io.Writer) error {
+func BufferedConvert(r io.ReadSeeker, w io.Writer, opts Options) error {
+	rsize, wsize := getBufferSizes(opts)
 	c := converter{
 		Source:      r,
 		Destination: w,
@@ -53,10 +60,12 @@ func BufferedConvert(r io.ReadSeeker, w io.Writer) error {
 		buffer:      []map[string]interface{}{},
 		delimiter:   default_delimiter,
 		sorted:      []string{},
+		readSize:		 rsize,
+		writeSize:	 wsize,
 	}
 
 	c.IndexFields(bufferData)
-	ew := &errWriter{w: c.Destination}
+	ew := newErrorWriter(c.Destination, c.writeSize)
 
 	// Write field headers
 	ew.write(fmt.Sprintf("%s\n", strings.Join(c.sorted, c.delimiter)))
@@ -81,6 +90,7 @@ func BufferedConvert(r io.ReadSeeker, w io.Writer) error {
 			break
 		}
 	}
+	ew.flush()
 	if c.err != nil {
 		return c.err
 	}
@@ -88,18 +98,44 @@ func BufferedConvert(r io.ReadSeeker, w io.Writer) error {
 	return nil
 }
 
+type Options struct {
+	ReadBufferSize	int
+	WriteBufferSize	int
+}
+
 // Convenience type for cutting down on error checking and type conversion
 // boilerplate code during repetative writes.
 type errWriter struct {
-	w   io.Writer
+	w   *bufio.Writer
 	err error
 }
 
 func (ew *errWriter) write(value interface{}) {
-	if ew.err != nil {
-		return
+	if ew.err == nil {
+		data := []byte(toString(value))
+
+		// Avoid growing the buffer
+		if len(data) > ew.w.Available() {
+			err := ew.w.Flush()
+			if err != nil {
+				ew.err = err
+				return
+			}
+		}
+		_, ew.err = ew.w.Write(data)
 	}
-	_, ew.err = ew.w.Write([]byte(toString(value)))
+}
+
+func (ew *errWriter) flush() {
+	if ew.err == nil {
+		ew.err = ew.w.Flush()
+	}
+}
+
+func newErrorWriter(writer io.Writer, size int) *errWriter {
+	return &errWriter {
+		w: bufio.NewWriterSize(writer, size),
+	}
 }
 
 // Prototype for functions used as callbacks during JSON structure walks.
@@ -117,14 +153,16 @@ type converter struct {
 	delimiter   string
 	buffer      []map[string]interface{}
 	err         error
+	readSize		int
 	sorted      []string
+	writeSize		int
 }
 
 // Walks a flat JSON array, invoking the given callback for each object
 // encountered. The callback is passed `map[string]interface{}` deserializaiton
 // of each object.
 func (c *converter) WalkJsonList(fn walkFunction, args ...interface{}) {
-	dec := json.NewDecoder(c.Source)
+	dec := json.NewDecoder(bufio.NewReaderSize(c.Source, c.readSize))
 
 	// Opening bracket
 	if token, err := dec.Token(); err != nil {
@@ -190,13 +228,14 @@ func (c *converter) WriteCsv(fn walkFunction) {
 		return
 	}
 
-	w := &errWriter{w: c.Destination}
+	w := newErrorWriter(c.Destination, c.writeSize)
 
 	// Write field headers
 	w.write(fmt.Sprintf("%s\n", strings.Join(c.sorted, c.delimiter)))
 
 	// Write JSON data as CSV
 	c.WalkJsonList(fn, c, w)
+	w.flush()
 }
 
 // Callback function that indexes record keys.
@@ -257,6 +296,18 @@ func (c converter) Less(i, j int) bool {
 	} else {
 		return c.sorted[j] > c.sorted[i]
 	}
+}
+
+func getBufferSizes(opts Options) (int, int) {
+	rsize := default_read_buffer_size
+	wsize := default_write_buffer_size
+	if opts.ReadBufferSize < 1 {
+		rsize = opts.ReadBufferSize
+	}
+	if opts.WriteBufferSize < 1 {
+		wsize = opts.WriteBufferSize
+	}
+	return rsize * 1000, wsize * 1000
 }
 
 // Converts JSON values into strings.

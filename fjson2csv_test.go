@@ -31,7 +31,7 @@ func TestBufferedConvert(t *testing.T) {
 
 	// Convert JSON to CSV
 	buffer := bytes.Buffer{}
-	if err := BufferedConvert(strings.NewReader(rawJson), &buffer); err != nil {
+	if err := BufferedConvert(strings.NewReader(rawJson), &buffer, Options{}); err != nil {
 		t.Fatalf("conversion failure: %s", err.Error())
 	}
 
@@ -49,7 +49,7 @@ func TestBufferedConvert(t *testing.T) {
 func BenchmarkBufferedConvert(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		buffer := bytes.Buffer{}
-		UnbufferedConvert(strings.NewReader(rawJson), &buffer)
+		BufferedConvert(strings.NewReader(rawJson), &buffer, Options{})
 	}
 }
 
@@ -58,7 +58,7 @@ func TestUnbufferedConvert(t *testing.T) {
 
 	// Convert JSON to CSV
 	buffer := bytes.Buffer{}
-	if err := UnbufferedConvert(strings.NewReader(rawJson), &buffer); err != nil {
+	if err := UnbufferedConvert(strings.NewReader(rawJson), &buffer, Options{}); err != nil {
 		t.Fatalf("conversion failure: %s", err.Error())
 	}
 
@@ -76,7 +76,7 @@ func TestUnbufferedConvert(t *testing.T) {
 func BenchmarkUnbufferedConvert(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		buffer := bytes.Buffer{}
-		UnbufferedConvert(strings.NewReader(rawJson), &buffer)
+		UnbufferedConvert(strings.NewReader(rawJson), &buffer, Options{})
 	}
 }
 
@@ -151,14 +151,16 @@ func TestWriteRecordCallback(t *testing.T) {
 			"failing write",
 			"pickle,condiment,4,true,",
 			map[string]interface{}{"name": "pickle", "category": "condiment", "age": 4, "valid": true},
-			&errWriter{w: iotest.TruncateWriter(&bytes.Buffer{}, 12)},
+			newErrorWriter(iotest.TruncateWriter(&bytes.Buffer{}, 12), default_write_buffer_size * 1000),
+			//&errWriter{w: iotest.TruncateWriter(&bytes.Buffer{}, 12)},
 			true,
 		},
 		{
 			"successful write",
 			"pickle,condiment,4,true,",
 			map[string]interface{}{"name": "pickle", "category": "condiment", "age": 4, "valid": true},
-			&errWriter{w: &bytes.Buffer{}},
+			newErrorWriter(&bytes.Buffer{}, default_write_buffer_size * 1000),
+			//&errWriter{w: &bytes.Buffer{}},
 			false,
 		},
 	}
